@@ -76,8 +76,10 @@ claude plugin marketplace add ~/code/claude-qualty-gate
 claude plugin install quality-gate@claude-quality-gate
 ```
 
-Installed at user scope, it applies in every project. The marketplace is this folder, so
-the plugin runs from here: after an edit, `/reload-plugins` picks it up.
+Installed at user scope, it applies in every project. Sessions run a copy made at install
+(under `~/.claude/plugins/cache/`), not this folder, and an update is recognised by the
+version in `.claude-plugin/plugin.json`. To ship a change: bump that version, commit, run
+`claude plugin update quality-gate@claude-quality-gate`, and restart the session.
 
 To turn it off in one project, in that project's `.claude/settings.json`:
 
