@@ -1,0 +1,27 @@
+[project]
+name = "claude-quality-gate"
+version = "0.1.0"
+description = "A Claude Code plugin holding every Python file Claude writes to ruff, complexipy and pyright"
+requires-python = ">=3.12"
+# The gate itself is the standard library alone; its checkers run through uvx.
+dependencies = []
+
+[dependency-groups]
+dev = [
+    "pytest~=9.1",
+]
+
+[tool.ruff]
+extend = "baseline/ruff.toml"
+target-version = "py312"
+
+[tool.ruff.lint.isort]
+# The gate runs as a directory, so its modules import one another by bare name.
+known-first-party = ["checks", "gate", "placement", "report", "shell", "tools"]
+
+[tool.pyright]
+extraPaths = ["quality_gate"]
+
+[tool.pytest.ini_options]
+pythonpath = ["quality_gate"]
+testpaths = ["tests"]

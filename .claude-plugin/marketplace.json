@@ -1,0 +1,14 @@
+{
+  "name": "claude-quality-gate",
+  "owner": {
+    "name": "Dan Cunningham"
+  },
+  "description": "The Python quality gate for Claude Code, as a local marketplace of one plugin.",
+  "plugins": [
+    {
+      "name": "quality-gate",
+      "source": "./",
+      "description": "Holds every Python file Claude writes to ruff, complexipy and pyright, blocking on findings in new code."
+    }
+  ]
+}

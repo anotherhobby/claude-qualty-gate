@@ -1,0 +1,72 @@
+# The gate's ruff baseline: what a project with no ruff configuration of its own is held
+# to. A project that wants changes writes its own configuration, which replaces this
+# whole; `extend = "<path to this file>"` there keeps everything it does not override.
+#
+# The size and shape rules (see quality_gate/checks.py, GATE_RULES) run whatever `select`
+# says, at the limits configured below or in the project's own configuration.
+
+line-length = 100
+
+[lint]
+# Preview rules are enabled only when selected by exact code (PLR0917, PLR1702).
+preview = true
+explicit-preview-rules = true
+select = [
+    "E",    # pycodestyle errors
+    "W",    # pycodestyle warnings
+    "F",    # pyflakes
+    "I",    # import order
+    "UP",   # pyupgrade
+    "B",    # bugbear: zip() without strict=, mutable defaults, ...
+    "PT",   # pytest: composite assertions, broad raises, ...
+    "ARG",  # unused arguments
+    "PLE",  # pylint errors
+    "PLW",  # pylint warnings: subprocess.run without check=, ...
+    "ERA",  # commented-out code
+    "RUF",  # ruff's own, including unused noqa comments
+    "NPY",  # numpy deprecations
+    "C4",   # comprehensions
+    "PIE",
+    "PERF",
+    "BLE",  # blind except
+    "PGH003",  # a type: ignore names the rule it ignores
+    "PGH004",  # a noqa names the rule it ignores
+    "PLR2004",  # magic values in comparisons; not in tests, below
+    # Size and shape: always run by the gate, listed so a plain `ruff check` agrees.
+    "C901",
+    "PLR0911",
+    "PLR0912",
+    "PLR0913",
+    "PLR0915",
+    "PLR0917",
+    "PLR1702",
+    "PLR5501",
+    "RET",
+    "SIM",
+]
+ignore = [
+    "PT006",   # parametrize names as a tuple: formatting only
+    "PT007",   # parametrize values as a list of tuples: formatting only
+    "RUF001",  # ambiguous unicode: µ, × and dashes are written on purpose
+    "RUF002",
+    "RUF003",
+    "RUF046",  # int() around round(): needed where the value may be a numpy scalar
+]
+
+[lint.per-file-ignores]
+# A test compares against literal expected values; naming each one helps nobody.
+"**/tests/**" = ["PLR2004"]
+"**/test_*.py" = ["PLR2004"]
+"**/conftest.py" = ["PLR2004"]
+
+[lint.mccabe]
+max-complexity = 10
+
+[lint.pylint]
+# Past five, parameters are keyword-only: two adjacent values of one type cannot swap.
+max-positional-args = 5
+max-args = 8
+max-branches = 12
+max-returns = 6
+max-statements = 50
+max-nested-blocks = 3
