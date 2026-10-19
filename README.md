@@ -31,7 +31,7 @@ command that writes no Python costs two `git status` calls.
   arguments, positional arguments, nesting, `RET`, `SIM`): always run, whatever the
   configuration selects, and an inline `# noqa` does not silence them. A limit that is
   wrong is changed in configuration, where the change is seen.
-- **complexipy**, cognitive complexity per function: limit 15, the threshold of
+- **complexipy**, cognitive complexity per function: limit 10, stricter than the 15 of
   SonarSource's rule S3776, or the project's `[tool.complexipy] max-complexity-allowed`.
 - **pyright** in standard mode, errors only, resolving imports through the project's
   `.venv` when it has one. A project's own `[tool.pyright]` or `pyrightconfig.json`

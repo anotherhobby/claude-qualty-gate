@@ -37,8 +37,9 @@ GATE_RULES = ",".join((
     "SIM",  # simplifications
 ))
 COGNITIVE_RULE = "cognitive-complexity"
-# SonarSource's cognitive complexity limit (rule S3776), the metric complexipy measures.
-DEFAULT_COGNITIVE_LIMIT = 15
+# Cognitive complexity per function, the metric complexipy measures: stricter than the
+# limit of 15 in SonarSource's rule S3776.
+DEFAULT_COGNITIVE_LIMIT = 10
 BASELINE = Path(__file__).resolve().parent.parent / "baseline" / "ruff.toml"
 # The first run of a pinned checker downloads it.
 TIMEOUT_S = 150
