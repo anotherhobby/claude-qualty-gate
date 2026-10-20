@@ -20,6 +20,8 @@ class Outcome:
         default_factory=lambda: {NEW: [], CHANGED: [], ELSEWHERE: []}
     )
     errors: list[str] = field(default_factory=list)
+    # Every function in the file as it is on disk.
+    functions: tuple[placement.Span, ...] = ()
 
     @property
     def rel(self) -> str:
@@ -61,6 +63,7 @@ def check(path: Path) -> Outcome | None:
         outcome.errors.append(str(error))
         return outcome
     file = placement.history(path, root)
+    outcome.functions = file.functions
     findings, outcome.errors = _collect(target, file.functions)
     for finding in sorted(findings, key=lambda f: (f.line, f.rule)):
         outcome.placed[placement.place(finding.line, file)].append(finding)

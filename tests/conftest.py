@@ -6,7 +6,20 @@ from pathlib import Path
 
 import pytest
 
+import keep
+
 GitRepo = Callable[..., None]
+
+
+@pytest.fixture(autouse=True)
+def isolated_keep(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Approvals, cases and session memories in scratch places, here and in every gate
+    a test runs as a subprocess, never in the user's own."""
+    scratch = tmp_path / "scratch"
+    scratch.mkdir()
+    monkeypatch.setenv("TMPDIR", str(scratch))
+    monkeypatch.setenv("QUALITY_GATE_HOME", str(tmp_path / "home"))
+    monkeypatch.setattr(keep, "STATE", scratch / "claude-quality-gate")
 
 
 def git(root: Path, *args: str) -> str:

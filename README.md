@@ -6,7 +6,7 @@ gate checks the whole file and places each finding against `HEAD`:
 
 | Where the finding is | What happens |
 | --- | --- |
-| **new code**: a function `HEAD` does not have, a changed line outside any function, or a file `HEAD` lacks | **blocks**: Claude is told to fix it before moving on |
+| **new code**: a function `HEAD` does not have, a changed line outside any function, or a file `HEAD` lacks | **blocks**: Claude is told to fix it, or, for a size finding, to fix it or [make the case to keep it](#keeping-a-size-finding) |
 | **old code this change touched**: a function `HEAD` has, with a changed line | listed for Claude as cleanup it may take, never required |
 | **old code elsewhere** in the file | counted in one line |
 
@@ -46,6 +46,46 @@ not block: the gate fails open.
 
 The gate leaves nothing in the projects it checks: ruff runs without its cache, and
 complexipy's cache goes to a temporary directory.
+
+## Keeping a size finding
+
+Most code that trips a size rule is better refactored, but some is the right size as
+written: a numeric routine that needs every one of its parameters, a state machine whose
+transitions belong together. The rules that measure size (C901, PLR0911, PLR0912, PLR0913,
+PLR0915, PLR0917, PLR1702 and cognitive complexity) can be kept; lint, type and style
+findings (RET, SIM, PLR5501 and everything else) are always fixed.
+
+Each size finding in new code is reported with a short id. When Claude judges the code
+better as written, it records its case (the refactor it rejected, and why) and carries
+on:
+
+```sh
+uv run python quality_gate propose a1b2c3 "the refactor rejected, and why this is better"
+```
+
+At the end it lists each kept finding in its summary, with the command to approve it.
+Only you approve, in your own terminal:
+
+```sh
+uv run python quality_gate approve           # the cases awaiting you
+uv run python quality_gate approve a1b2c3    # approve one
+```
+
+To reject a case, do nothing: it lapses, and Claude fixes the code. The hooks deny Claude
+any Bash command that runs `approve` and any edit under `~/.claude/quality-gate/`, so an
+approval cannot be carried over from an earlier "yes". The denial matches the command's
+text, so it also catches a Bash command that merely quotes it, such as a commit message.
+
+An approval is kept in `~/.claude/quality-gate/approved.jsonl`, never in a repository,
+so projects shared with others carry no trace of it. It names a function and a rule, not
+a line, and covers that function up to the value approved: a later agent that touches it
+is told it was kept on purpose, and if it grows past that value it blocks again.
+
+Within one session a size finding blocks once; after that it is a reminder. Before Claude
+stops, the gate holds it back, once, over any finding in new code it leaves neither fixed
+nor argued for, and over any case its summary does not yet give. Cases and session memory
+live in the system's temporary directory and lapse after a week unseen; a lapsed case is
+simply made again if the code is still new.
 
 ## Project configuration
 
@@ -92,6 +132,7 @@ To turn it off in one project, in that project's `.claude/settings.json`:
 ```sh
 uv run python quality_gate FILE ...     # exits 1 on findings in new code
 uv run python quality_gate --outdated   # each pinned checker against its latest release
+uv run python quality_gate approve      # cases awaiting approval; with an id, approve one
 ```
 
 ## Development

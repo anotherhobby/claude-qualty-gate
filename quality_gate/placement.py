@@ -107,14 +107,20 @@ def history(path: Path, root: Path) -> History:
     return History(functions, old_names, changed_lines(diff or ""))
 
 
+def innermost(functions: tuple[Span, ...], line: int) -> Span | None:
+    """The innermost function around `line`, or None when it is in none."""
+    inside = [span for span in functions if span[1] <= line <= span[2]]
+    return max(inside, key=lambda span: span[1]) if inside else None
+
+
 def place(line: int, file: History) -> str:
     """NEW, CHANGED or ELSEWHERE for a finding on `line`."""
     if file.old_names is None:
         return NEW
-    inside = [span for span in file.functions if span[1] <= line <= span[2]]
-    if not inside:
+    span = innermost(file.functions, line)
+    if span is None:
         return NEW if line in file.changed else ELSEWHERE
-    name, first, last = max(inside, key=lambda span: span[1])
+    name, first, last = span
     if name not in file.old_names:
         return NEW
     return CHANGED if any(first <= n <= last for n in file.changed) else ELSEWHERE

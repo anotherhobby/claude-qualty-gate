@@ -10,6 +10,16 @@
             "timeout": 30
           }
         ]
+      },
+      {
+        "matcher": "Edit|Write|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "uv run --no-project --quiet --python '>=3.12' python \"${CLAUDE_PLUGIN_ROOT}/quality_gate\" --guard",
+            "timeout": 10
+          }
+        ]
       }
     ],
     "PostToolUse": [
@@ -43,6 +53,17 @@
             "type": "command",
             "command": "uv run --no-project --quiet --python '>=3.12' python \"${CLAUDE_PLUGIN_ROOT}/quality_gate\" --shell-after",
             "timeout": 300
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "uv run --no-project --quiet --python '>=3.12' python \"${CLAUDE_PLUGIN_ROOT}/quality_gate\" --stop",
+            "timeout": 180
           }
         ]
       }

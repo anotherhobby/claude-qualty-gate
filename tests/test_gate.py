@@ -7,6 +7,7 @@ pyright does.
 from __future__ import annotations
 
 import json
+import re
 import subprocess
 import sys
 import textwrap
@@ -52,6 +53,15 @@ NOQA_ON_A_SIZE_RULE = textwrap.dedent(
 
 
     def many(a, b, c, d, e, f, g, h, i):  # noqa: PLR0913, PLR0917
+        return a, b, c, d, e, f, g, h, i
+    """
+)
+
+NINE_ARGUMENTS = textwrap.dedent(
+    """\
+
+
+    def many(a, b, c, d, e, f, g, h, i):
         return a, b, c, d, e, f, g, h, i
     """
 )
@@ -169,9 +179,9 @@ def test_no_cache_is_left_in_the_project(repo: Path):
     assert sorted(p.name for p in repo.iterdir()) == [".git", "mod.py"]
 
 
-def run_hook(payload: dict) -> subprocess.CompletedProcess:
+def run_hook(payload: dict, mode: str = "--hook") -> subprocess.CompletedProcess:
     return subprocess.run(
-        [sys.executable, str(GATE_DIR), "--hook"],
+        [sys.executable, str(GATE_DIR), mode],
         input=json.dumps(payload),
         capture_output=True,
         text=True,
@@ -208,3 +218,59 @@ def test_new_findings_are_placed_new(repo: Path):
     outcome = check(repo / "mod.py")
     assert outcome is not None
     assert outcome.placed[NEW] == outcome.blocking
+
+
+def run_gate(*args: str) -> subprocess.CompletedProcess:
+    return subprocess.run(
+        [sys.executable, str(GATE_DIR), *args], capture_output=True, text=True, check=False
+    )
+
+
+def test_a_size_finding_is_kept_by_the_agents_case_and_the_users_approval(repo: Path):
+    commit(repo, {"mod.py": CLEAN})
+    (repo / "mod.py").write_text(CLEAN + NINE_ARGUMENTS)
+    edit = {"session_id": "s1", "tool_input": {"file_path": str(repo / "mod.py")}}
+    first = json.loads(run_hook(edit).stdout)
+    assert first["decision"] == "block"
+    ids = re.findall(r"\[([0-9a-f]{6})\]", first["reason"])
+    assert len(ids) == 2
+
+    again = json.loads(run_hook(edit).stdout)
+    assert "decision" not in again
+    assert "Still open" in again["hookSpecificOutput"]["additionalContext"]
+
+    for finding_id in ids:
+        proposed = run_gate("propose", finding_id, "nine coefficients of one polynomial")
+        assert proposed.returncode == 0, proposed.stdout
+        assert f"approve {finding_id}" in proposed.stdout
+    stopping = {"session_id": "s1", "stop_hook_active": False}
+    held = json.loads(run_hook(stopping, "--stop").stdout)
+    assert held["decision"] == "block"
+    assert all(f"approve {finding_id}" in held["reason"] for finding_id in ids)
+    assert run_hook(stopping, "--stop").stdout == ""
+
+    for finding_id in ids:
+        assert run_gate("approve", finding_id).returncode == 0
+    later = {"session_id": "s2", "tool_input": {"file_path": str(repo / "mod.py")}}
+    kept = json.loads(run_hook(later).stdout)["hookSpecificOutput"]["additionalContext"]
+    assert kept.count("Kept on purpose") == 2
+
+
+def test_stop_checks_again_what_another_files_edit_may_have_fixed(repo: Path):
+    commit(repo, {"mod.py": CLEAN})
+    (repo / "mod.py").write_text(CLEAN + TANGLED)
+    edit = {"session_id": "s1", "tool_input": {"file_path": str(repo / "mod.py")}}
+    assert json.loads(run_hook(edit).stdout)["decision"] == "block"
+    (repo / "mod.py").write_text(CLEAN)
+    stopping = {"session_id": "s1", "stop_hook_active": False}
+    assert run_hook(stopping, "--stop").stdout == ""
+
+
+def test_the_agent_cannot_run_the_approve_command(repo: Path):
+    bash = {
+        "cwd": str(repo),
+        "tool_use_id": "toolu_1",
+        "tool_input": {"command": f"python {GATE_DIR} approve a1b2c3"},
+    }
+    answer = json.loads(run_hook(bash, "--shell-before").stdout)
+    assert answer["hookSpecificOutput"]["permissionDecision"] == "deny"
