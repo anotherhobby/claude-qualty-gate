@@ -76,7 +76,7 @@ def home() -> Path:
 
 def command(*args: str) -> str:
     """The shell command that runs this gate with `args`."""
-    runner = ["uv", "run", "--no-project", "--quiet", "--python", ">=3.12", "python"]
+    runner = ["uv", "run", "--no-config", "--no-project", "--quiet", "--python", ">=3.12", "python"]
     return shlex.join([*runner, str(GATE_DIR), *args])
 
 

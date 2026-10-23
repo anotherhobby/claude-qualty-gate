@@ -6,7 +6,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "uv run --no-project --quiet --python '>=3.12' python \"${CLAUDE_PLUGIN_ROOT}/quality_gate\" --shell-before",
+            "command": "uv run --no-config --no-project --quiet --python '>=3.12' python \"${CLAUDE_PLUGIN_ROOT}/quality_gate\" --shell-before",
             "timeout": 30
           }
         ]
@@ -16,7 +16,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "uv run --no-project --quiet --python '>=3.12' python \"${CLAUDE_PLUGIN_ROOT}/quality_gate\" --guard",
+            "command": "uv run --no-config --no-project --quiet --python '>=3.12' python \"${CLAUDE_PLUGIN_ROOT}/quality_gate\" --guard",
             "timeout": 10
           }
         ]
@@ -28,7 +28,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "uv run --no-project --quiet --python '>=3.12' python \"${CLAUDE_PLUGIN_ROOT}/quality_gate\" --hook",
+            "command": "uv run --no-config --no-project --quiet --python '>=3.12' python \"${CLAUDE_PLUGIN_ROOT}/quality_gate\" --hook",
             "timeout": 180,
             "statusMessage": "Quality gate"
           }
@@ -39,7 +39,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "uv run --no-project --quiet --python '>=3.12' python \"${CLAUDE_PLUGIN_ROOT}/quality_gate\" --shell-after",
+            "command": "uv run --no-config --no-project --quiet --python '>=3.12' python \"${CLAUDE_PLUGIN_ROOT}/quality_gate\" --shell-after",
             "timeout": 300
           }
         ]
@@ -51,7 +51,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "uv run --no-project --quiet --python '>=3.12' python \"${CLAUDE_PLUGIN_ROOT}/quality_gate\" --shell-after",
+            "command": "uv run --no-config --no-project --quiet --python '>=3.12' python \"${CLAUDE_PLUGIN_ROOT}/quality_gate\" --shell-after",
             "timeout": 300
           }
         ]
@@ -62,7 +62,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "uv run --no-project --quiet --python '>=3.12' python \"${CLAUDE_PLUGIN_ROOT}/quality_gate\" --stop",
+            "command": "uv run --no-config --no-project --quiet --python '>=3.12' python \"${CLAUDE_PLUGIN_ROOT}/quality_gate\" --stop",
             "timeout": 180
           }
         ]
