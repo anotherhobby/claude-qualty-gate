@@ -2,7 +2,13 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from checks import DEFAULT_COGNITIVE_LIMIT, Target, cognitive_limit, has_own_ruff_config
+from checks import (
+    DEFAULT_COGNITIVE_LIMIT,
+    Target,
+    cognitive_limit,
+    has_own_ruff_config,
+    touched_functions_block,
+)
 from tools import is_behind, report_line, version_tuple
 
 
@@ -39,6 +45,16 @@ def test_cognitive_limit_is_the_nearest_setting_or_the_default(tmp_path: Path):
     assert cognitive_limit(t) == DEFAULT_COGNITIVE_LIMIT
     (tmp_path / "pyproject.toml").write_text("[tool.complexipy]\nmax-complexity-allowed = 9\n")
     assert cognitive_limit(t) == 9
+
+
+def test_touched_functions_block_unless_the_project_only_reports_them(tmp_path: Path):
+    t = target(tmp_path)
+    assert touched_functions_block(t)
+    settings = tmp_path / "pyproject.toml"
+    settings.write_text('[tool.quality-gate]\ntouched-functions = "report"\n')
+    assert not touched_functions_block(t)
+    settings.write_text('[tool.quality-gate]\ntouched-functions = "sometimes"\n')
+    assert touched_functions_block(t)
 
 
 def test_a_broken_pyproject_is_no_configuration(tmp_path: Path):

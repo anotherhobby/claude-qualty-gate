@@ -1,17 +1,17 @@
 """Size findings a function may keep: the agent makes its case, and the user approves it.
 
 The size rules measure, and some code is the right size as written. A size finding in new
-code blocks until it is fixed or the agent records its case with `propose`, after which
-the agent carries on. Only the user approves a case, with `approve` in their own terminal:
-the hooks deny the agent that command and any edit under the user's gate directory. Lint,
-type and style findings are never kept.
+code, or in an old function the change touched, blocks until it is fixed or the agent
+records its case with `propose`, after which the agent carries on. Only the user approves a
+case, with `approve` in their own terminal: the hooks deny the agent that command and any
+edit under the user's gate directory. Lint, type and style findings are never kept.
 
 What is kept, and where:
 - approvals, in the user's home directory and never in a repository, so projects shared
   with others are left alone. An approval names its function and rule, not a line, and
   covers that function up to the value approved.
 - open size findings and the cases made for them, in temp, cleared after a week unseen. A
-  case not approved by then is gone; the finding is reported again while it is still new.
+  case not approved by then is gone; the finding is reported again while the change still holds it.
 - each session's memory, in temp: what it has been told, so a finding blocks once per
   session, and what each file it checked last held, which the Stop hook reads.
 """
@@ -35,7 +35,7 @@ from pathlib import Path
 import placement
 from checks import COGNITIVE_RULE, Finding
 from gate import Outcome
-from placement import CHANGED, NEW
+from placement import CHANGED
 
 STATE = Path(tempfile.gettempdir()) / "claude-quality-gate"
 # Open findings, cases and session memories unseen this long are cleared.
@@ -124,20 +124,20 @@ class Triage:
     """One file's findings, sorted by what the agent is to do about each."""
 
     outcome: Outcome
-    # New code, to fix: never kept.
+    # New or touched code, to fix: never kept.
     fix: list[Finding] = field(default_factory=list)
-    # New code, to fix or make the case for.
+    # New or touched code, to fix or make the case for.
     keep: list[Size] = field(default_factory=list)
     # Of those, the ones grown past an approval: id to the value the user approved.
     worse: dict[str, int] = field(default_factory=dict)
-    # New code the session has already been told about, with no case yet.
+    # Ones the session has already been told about, with no case yet.
     open: list[Size] = field(default_factory=list)
     # A case made, awaiting the user: (finding, case).
     cased: list[tuple[Size, str]] = field(default_factory=list)
-    # Approved by the user, in new code or in old code this change touched.
+    # Approved by the user.
     approved: list[tuple[Size, dict]] = field(default_factory=list)
-    # Old code this change touched: cleanup welcome, not required.
-    changed: list[Finding] = field(default_factory=list)
+    # Old functions this change touched, in a project that only reports them.
+    reported: list[Finding] = field(default_factory=list)
 
     @property
     def blocking(self) -> bool:
@@ -154,7 +154,7 @@ def _covering(size: Size | None, approvals: dict[Key, dict]) -> dict | None:
     return approval if size and _covers(approval, size.value, "value") else None
 
 
-def _sort_new(result: Triage, size: Size, approval: dict | None, told: dict) -> None:
+def _sort_open(result: Triage, size: Size, approval: dict | None, told: dict) -> None:
     case = _case(size.id)
     if case is not None and _covers(case, size.value, "case_value"):
         result.cased.append((size, case["case"]))
@@ -168,21 +168,26 @@ def _sort_new(result: Triage, size: Size, approval: dict | None, told: dict) -> 
 
 def _triage(outcome: Outcome, approvals: dict[Key, dict], told: dict) -> Triage:
     result = Triage(outcome)
-    for finding in outcome.placed[NEW]:
+    for finding in outcome.blocking:
         size = size_of(outcome, finding)
         if size is None:
             result.fix.append(finding)
         elif approval := _covering(size, approvals):
             result.approved.append((size, approval))
         else:
-            _sort_new(result, size, approvals.get(size.key), told)
-    for finding in outcome.placed[CHANGED]:
-        size = size_of(outcome, finding)
+            _sort_open(result, size, approvals.get(size.key), told)
+    if not outcome.touched_block:
+        _sort_reported(result, approvals)
+    return result
+
+
+def _sort_reported(result: Triage, approvals: dict[Key, dict]) -> None:
+    for finding in result.outcome.placed[CHANGED]:
+        size = size_of(result.outcome, finding)
         if size and (approval := _covering(size, approvals)):
             result.approved.append((size, approval))
         else:
-            result.changed.append(finding)
-    return result
+            result.reported.append(finding)
 
 
 def triage(outcomes: list[Outcome], memory: Memory) -> list[Triage]:
@@ -378,7 +383,7 @@ def deny_edit(payload: dict) -> dict | None:
 class Unfinished:
     """What a session leaves undone, each told to the agent once."""
 
-    # Lines describing new-code findings to fix.
+    # Lines describing findings to fix.
     must_fix: list[str] = field(default_factory=list)
     # (id, line) of size findings with neither a fix nor a case.
     need_case: list[tuple[str, str]] = field(default_factory=list)
@@ -444,7 +449,7 @@ def _final_text(transcript: str | None) -> str:
 
 
 def files_left(session_id: str | None) -> list[Path]:
-    """The files the session last left with findings in new code, to check again at Stop:
+    """The files the session last left with findings to fix, to check again at Stop:
     another file's edit may have fixed them. Files since deleted are forgotten."""
     if not session_id or not _session_path(session_id).is_file():
         return []

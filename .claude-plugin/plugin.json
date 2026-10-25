@@ -1,8 +1,8 @@
 {
   "$schema": "https://anthropic.com/claude-code/plugin.schema.json",
   "name": "quality-gate",
-  "version": "0.2.1",
-  "description": "Holds every Python file Claude writes to ruff, complexipy and pyright, blocking on findings in new code.",
+  "version": "0.2.2",
+  "description": "Holds every Python file Claude writes to ruff, complexipy and pyright, blocking on findings in new code and in every function it edits.",
   "author": {
     "name": "Dan Cunningham"
   }

@@ -6,7 +6,7 @@ from checks import Finding, Target
 from gate import Outcome
 from keep import Triage, Unfinished, triage
 from placement import CHANGED, ELSEWHERE, NEW
-from report import FIX_ADVICE, LISTED, hook_output, stop_reason, text
+from report import FIX_ADVICE, LISTED, TOUCHED_ADVICE, hook_output, stop_reason, text
 
 
 def outcome(placed: dict[str, list[Finding]] | None = None) -> Outcome:
@@ -39,6 +39,7 @@ def test_new_code_findings_block_with_every_finding_listed():
     assert "Fix:\n" in answer["reason"]
     assert "src/mod.py:29: E501 message 29" in answer["reason"]
     assert FIX_ADVICE in answer["reason"]
+    assert TOUCHED_ADVICE in answer["reason"]
     assert "propose" not in answer["reason"]
 
 
@@ -54,23 +55,57 @@ def test_a_size_finding_blocks_with_its_id_and_the_way_to_keep_it():
     assert FIX_ADVICE not in reason
 
 
-def test_old_code_is_context_and_never_blocks():
-    old = outcome({CHANGED: [finding(3)], ELSEWHERE: [finding(9)]})
-    answer = hook_output(triaged(old), "PostToolUseFailure")
+def test_untouched_old_code_is_context_and_never_blocks():
+    answer = hook_output(triaged(outcome({ELSEWHERE: [finding(9)]})), "PostToolUseFailure")
     assert answer is not None
     assert "decision" not in answer
     assert answer["hookSpecificOutput"]["hookEventName"] == "PostToolUseFailure"
     context = answer["hookSpecificOutput"]["additionalContext"]
-    assert "src/mod.py:3: E501" in context
     assert "untouched old code: 1 (1 E501)" in context
 
 
-def test_old_code_touched_is_listed_up_to_the_limit_then_counted():
-    (result,) = triaged(outcome({CHANGED: [finding(n) for n in range(LISTED + 4)]}))
+def test_an_old_function_the_change_touched_blocks_like_new_code():
+    answer = hook_output(triaged(outcome({CHANGED: [finding(3)]})), "PostToolUse")
+    assert answer is not None
+    assert answer["decision"] == "block"
+    assert "Fix:\n  src/mod.py:3: E501" in answer["reason"]
+    assert TOUCHED_ADVICE in answer["reason"]
+    assert "not required" not in answer["reason"]
+
+
+def test_a_size_finding_in_a_touched_old_function_can_be_kept():
+    answer = hook_output(triaged(outcome({CHANGED: [arguments(11)]})), "PostToolUse")
+    assert answer is not None
+    assert "Fix, or make the case to keep [id]:" in answer["reason"]
+
+
+def reporting(placed: dict[str, list[Finding]]) -> Outcome:
+    result = outcome(placed)
+    result.touched_block = False
+    return result
+
+
+def test_a_project_that_only_reports_touched_functions_lists_them_as_context():
+    answer = hook_output(triaged(reporting({CHANGED: [finding(3)]})), "PostToolUse")
+    assert answer is not None
+    assert "decision" not in answer
+    context = answer["hookSpecificOutput"]["additionalContext"]
+    assert "not blocked in this project:\n  src/mod.py:3: E501" in context
+
+
+def test_reported_touched_functions_are_listed_up_to_the_limit_then_counted():
+    (result,) = triaged(reporting({CHANGED: [finding(n) for n in range(LISTED + 4)]}))
     body = text(result)
     assert f"src/mod.py:{LISTED - 1}:" in body
     assert f"src/mod.py:{LISTED}:" not in body
     assert "... and 4 more" in body
+
+
+def test_new_code_in_a_reporting_project_blocks_without_the_touched_advice():
+    answer = hook_output(triaged(reporting({NEW: [finding(1)]})), "PostToolUse")
+    assert answer is not None
+    assert answer["decision"] == "block"
+    assert TOUCHED_ADVICE not in answer["reason"]
 
 
 def test_several_files_block_once_with_the_advice_once():

@@ -1,8 +1,10 @@
 """Where a finding sits against HEAD: in new code, in old code this change touched, or in
 old code elsewhere in the file.
 
-New code is held to every rule. Old code is reported and never blocked on, so editing an
-old file does not become a forced rewrite of it. A function is new when HEAD's copy of
+New code and every old function this change touched are held to every rule: a function
+the agent edits passes in full, whoever wrote what is wrong with it. Old code elsewhere is
+counted and never blocked on, so editing an old file does not become a forced rewrite of
+it. A function is new when HEAD's copy of
 the file has no function of that qualified name, and a finding outside every function is
 new when its line changed. The innermost function around a line places it, so a function
 added inside an old one is new.

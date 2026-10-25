@@ -96,14 +96,24 @@ def test_the_same_function_already_at_head_is_reported_not_blocked(repo: Path):
     assert "cognitive-complexity" in rules(outcome.placed[ELSEWHERE])
 
 
-def test_touching_an_old_function_reports_it_as_changed(repo: Path):
+def test_touching_an_old_function_blocks_on_all_of_it(repo: Path):
     commit(repo, {"mod.py": CLEAN + TANGLED})
     edited = (CLEAN + TANGLED).replace("total = 0", "total = 1")
     (repo / "mod.py").write_text(edited)
     outcome = check(repo / "mod.py")
     assert outcome is not None
-    assert outcome.blocking == []
     assert "cognitive-complexity" in rules(outcome.placed[CHANGED])
+    assert "cognitive-complexity" in rules(outcome.blocking)
+
+
+def test_a_project_can_only_report_old_functions_it_touched(repo: Path):
+    settings = '[tool.quality-gate]\ntouched-functions = "report"\n'
+    commit(repo, {"mod.py": CLEAN + TANGLED, "pyproject.toml": settings})
+    (repo / "mod.py").write_text((CLEAN + TANGLED).replace("total = 0", "total = 1"))
+    outcome = check(repo / "mod.py")
+    assert outcome is not None
+    assert "cognitive-complexity" in rules(outcome.placed[CHANGED])
+    assert outcome.blocking == []
 
 
 def test_noqa_does_not_silence_a_size_rule(repo: Path):

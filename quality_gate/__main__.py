@@ -7,7 +7,8 @@
                                          # of the user's approvals
     python quality_gate --stop           # at Stop: hold the agent back, once, over what it
                                          # leaves undone
-    python quality_gate FILE ...         # check files by hand; exits 1 on findings in new code
+    python quality_gate FILE ...         # check files by hand; exits 1 on findings in new or
+                                         # touched code
     python quality_gate --outdated       # each pinned checker against its latest release
     python quality_gate propose ID CASE  # the agent's case for keeping a size finding
     python quality_gate approve [ID]     # the user's approval of a case; none: list them
@@ -75,7 +76,7 @@ def by_hand(files: list[str]) -> int:
         print(report.text(result) or f"{result.outcome.rel}: clean")
     blocked = sum(len(result.fix) + len(result.keep) for result in triages)
     if blocked:
-        print(f"\n{blocked} finding(s) in new code.")
+        print(f"\n{blocked} finding(s) in new or touched code.")
         print("\n".join(report.advice(triages)))
     return 1 if blocked else 0
 

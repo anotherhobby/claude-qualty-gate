@@ -22,6 +22,8 @@ class Outcome:
     errors: list[str] = field(default_factory=list)
     # Every function in the file as it is on disk.
     functions: tuple[placement.Span, ...] = ()
+    # False when the project only reports old functions the change touched.
+    touched_block: bool = True
 
     @property
     def rel(self) -> str:
@@ -29,7 +31,10 @@ class Outcome:
 
     @property
     def blocking(self) -> list[Finding]:
-        return self.placed[NEW]
+        """Findings in new code and, unless the project only reports them, in every old
+        function this change touched."""
+        touched = self.placed[CHANGED] if self.touched_block else []
+        return sorted([*self.placed[NEW], *touched], key=lambda f: (f.line, f.rule))
 
 
 def _collect(target: Target, functions: tuple[placement.Span, ...]) -> tuple[list, list]:
@@ -62,6 +67,7 @@ def check(path: Path) -> Outcome | None:
     except ToolError as error:
         outcome.errors.append(str(error))
         return outcome
+    outcome.touched_block = checks.touched_functions_block(target)
     file = placement.history(path, root)
     outcome.functions = file.functions
     findings, outcome.errors = _collect(target, file.functions)

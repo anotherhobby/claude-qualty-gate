@@ -9,8 +9,15 @@ from checks import Finding
 from keep import Triage, Unfinished, describe
 from placement import ELSEWHERE
 
-# Old code is listed up to this many findings and counted past it.
+# Old functions a project only reports are listed up to this many findings and counted past it.
 LISTED = 15
+
+TOUCHED_ADVICE = (
+    "These findings are in code you wrote or edited: new code, and every old function you "
+    "changed a line of. A function you edit must pass in full, including what was wrong "
+    "with it before you arrived. This is not optional cleanup. Old functions you did not "
+    "touch can stay as they are."
+)
 
 FIX_ADVICE = (
     'Findings under "Fix:" are lint, type and style. Fix all of them before moving on; none '
@@ -60,7 +67,7 @@ def _blocking(result: Triage) -> list[str]:
     if not result.blocking:
         return []
     count = len(result.fix) + len(result.keep)
-    parts = [f"quality gate: {count} finding(s) in new code in {rel}."]
+    parts = [f"quality gate: {count} finding(s) in code you wrote or edited in {rel}."]
     if result.fix:
         parts += ["Fix:", *_lines(rel, result.fix)]
     if result.keep:
@@ -96,9 +103,9 @@ def _notes(result: Triage) -> list[str]:
 
 def _old(result: Triage) -> list[str]:
     rel, parts = result.outcome.rel, []
-    if result.changed:
-        parts.append(f"In old code this change touched in {rel} (cleanup welcome, not required):")
-        parts += _lines(rel, result.changed, LISTED)
+    if result.reported:
+        parts.append(f"In old functions this change touched in {rel}, not blocked in this project:")
+        parts += _lines(rel, result.reported, LISTED)
     if elsewhere := result.outcome.placed[ELSEWHERE]:
         parts.append(
             f"Elsewhere in {rel}, untouched old code: {len(elsewhere)} ({_counts(elsewhere)})."
@@ -124,7 +131,10 @@ def text(result: Triage) -> str:
 
 def advice(triages: list[Triage]) -> list[str]:
     """What to do about blocking findings, once for every file checked together."""
-    parts = []
+    blocking = [result for result in triages if result.blocking]
+    if not blocking:
+        return []
+    parts = ["", TOUCHED_ADVICE] if any(r.outcome.touched_block for r in blocking) else []
     if any(result.fix for result in triages):
         parts += ["", FIX_ADVICE]
     if any(result.keep for result in triages):
@@ -133,8 +143,8 @@ def advice(triages: list[Triage]) -> list[str]:
 
 
 def hook_output(triages: list[Triage], event: str) -> dict | None:
-    """The answer to a hook `event`: a block when any new code has findings to fix or to
-    make the case for, context otherwise, None when there is nothing to say."""
+    """The answer to a hook `event`: a block when any new or touched code has findings to
+    fix or to make the case for, context otherwise, None when there is nothing to say."""
     bodies = [body for result in triages if (body := text(result))]
     if not bodies:
         return None
@@ -147,11 +157,12 @@ def stop_reason(left: Unfinished) -> str:
     """Why the agent is held back at Stop, once for each thing it leaves undone."""
     parts = ["Before you finish:"]
     if left.must_fix:
-        parts.append("These findings in new code are not fixed, and lint, type and style are")
-        parts.append("never kept:")
+        parts.append("These findings in code you wrote or edited are not fixed. Each must be,")
+        parts.append("and lint, type and style are never kept:")
         parts += [f"  {line}" for line in left.must_fix]
     if left.need_case:
-        parts.append("These size findings in new code are neither fixed nor kept with a case.")
+        parts.append("These size findings in code you wrote or edited are neither fixed nor")
+        parts.append("kept with a case.")
         parts.append("Fix each one, or record your case:")
         parts += [f"  {line} [{finding_id}]" for finding_id, line in left.need_case]
         parts.append(f'  {keep.command("propose")} <id> "<case>"')

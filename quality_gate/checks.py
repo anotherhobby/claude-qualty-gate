@@ -100,6 +100,17 @@ def cognitive_limit(target: Target) -> int:
     return DEFAULT_COGNITIVE_LIMIT
 
 
+def touched_functions_block(target: Target) -> bool:
+    """Whether old functions a change touches block, from the nearest
+    `[tool.quality-gate] touched-functions`: "block", the default, or "report". Any other
+    value blocks."""
+    for directory in _dirs_up(target):
+        table = _tool_table(directory / "pyproject.toml", "quality-gate") or {}
+        if "touched-functions" in table:
+            return table["touched-functions"] != "report"
+    return True
+
+
 def _run(cmd: list[str], cwd: Path, allowed: tuple[int, ...] = (0, 1)) -> str:
     name = cmd[1].split("@")[0]
     try:

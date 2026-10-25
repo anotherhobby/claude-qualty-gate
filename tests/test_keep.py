@@ -143,7 +143,6 @@ def test_an_approved_function_is_cited_in_new_and_old_code():
     for where in (NEW, CHANGED):
         result = check(fresh(), arguments(10), where=where)
         assert not result.blocking
-        assert result.changed == []
         ((size, approval),) = result.approved
         assert (size.value, approval["value"]) == (10, 11)
 

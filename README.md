@@ -7,8 +7,8 @@ gate checks the whole file and places each finding against `HEAD`:
 | Where the finding is | What happens |
 | --- | --- |
 | **new code**: a function `HEAD` does not have, a changed line outside any function, or a file `HEAD` lacks | **blocks**: Claude is told to fix it, or, for a size finding, to fix it or [make the case to keep it](#keeping-a-size-finding) |
-| **old code this change touched**: a function `HEAD` has, with a changed line | listed for Claude as cleanup it may take, never required |
-| **old code elsewhere** in the file | counted in one line |
+| **old code this change touched**: a function `HEAD` has, with a changed line | **blocks**, just as new code does: a function Claude edits must pass in full, including what was wrong with it before. A project can [only report these](#project-configuration) |
+| **old code elsewhere** in the file | counted in one line, never required |
 
 Files outside a git repository (scratch files), files git ignores, and files the ruff
 configuration excludes are not checked.
@@ -55,9 +55,9 @@ transitions belong together. The rules that measure size (C901, PLR0911, PLR0912
 PLR0915, PLR0917, PLR1702 and cognitive complexity) can be kept; lint, type and style
 findings (RET, SIM, PLR5501 and everything else) are always fixed.
 
-Each size finding in new code is reported with a short id. When Claude judges the code
-better as written, it records its case (the refactor it rejected, and why) and carries
-on:
+Each size finding in new or touched code is reported with a short id. When Claude judges
+the code better as written, it records its case (the refactor it rejected, and why) and
+carries on:
 
 ```sh
 uv run python quality_gate propose a1b2c3 "the refactor rejected, and why this is better"
@@ -82,10 +82,10 @@ a line, and covers that function up to the value approved: a later agent that to
 is told it was kept on purpose, and if it grows past that value it blocks again.
 
 Within one session a size finding blocks once; after that it is a reminder. Before Claude
-stops, the gate holds it back, once, over any finding in new code it leaves neither fixed
-nor argued for, and over any case its summary does not yet give. Cases and session memory
-live in the system's temporary directory and lapse after a week unseen; a lapsed case is
-simply made again if the code is still new.
+stops, the gate holds it back, once, over any finding in new or touched code it leaves
+neither fixed nor argued for, and over any case its summary does not yet give. Cases and
+session memory live in the system's temporary directory and lapse after a week unseen; a
+lapsed case is simply made again if the change still holds the code.
 
 ## Project configuration
 
@@ -105,6 +105,14 @@ Configuration is looked for from the file's directory up to the repository root.
 
   A project shared with others is better off with a complete configuration of its own,
   since that path exists only on this machine.
+- **`[tool.quality-gate] touched-functions` in `pyproject.toml`**: `"block"`, the default,
+  holds every old function a change touches to every rule. `"report"` blocks on new code
+  only and lists findings in touched old functions without blocking on them:
+
+  ```toml
+  [tool.quality-gate]
+  touched-functions = "report"
+  ```
 
 ## Install
 
@@ -130,7 +138,7 @@ To turn it off in one project, in that project's `.claude/settings.json`:
 ## By hand
 
 ```sh
-uv run python quality_gate FILE ...     # exits 1 on findings in new code
+uv run python quality_gate FILE ...     # exits 1 on findings in new or touched code
 uv run python quality_gate --outdated   # each pinned checker against its latest release
 uv run python quality_gate approve      # cases awaiting approval; with an id, approve one
 ```
