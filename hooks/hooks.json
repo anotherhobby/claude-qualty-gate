@@ -63,7 +63,7 @@
           {
             "type": "command",
             "command": "uv run --no-config --no-project --quiet --python '>=3.12' python \"${CLAUDE_PLUGIN_ROOT}/quality_gate\" --stop",
-            "timeout": 180
+            "timeout": 300
           }
         ]
       }

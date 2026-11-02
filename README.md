@@ -1,8 +1,10 @@
 # claude-quality-gate
 
-A Claude Code plugin that holds every Python file Claude writes to ruff, complexipy and
-pyright, as it writes it. After each `Edit`, `Write` or `MultiEdit` of a `.py` file, the
-gate checks the whole file and places each finding against `HEAD`:
+A Claude Code plugin that holds every Python and Swift file Claude writes to its
+language's checkers, as it writes it: Python to ruff, complexipy and pyright; Swift to
+SwiftLint, swift-format, the gate's own syntax rules and, at Stop, the compiler. After
+each `Edit`, `Write` or `MultiEdit` of a `.py` or `.swift` file, the gate checks the whole
+file and places each finding against `HEAD`:
 
 | Where the finding is | What happens |
 | --- | --- |
@@ -10,20 +12,20 @@ gate checks the whole file and places each finding against `HEAD`:
 | **old code this change touched**: a function `HEAD` has, with a changed line | **blocks**, just as new code does: a function Claude edits must pass in full, including what was wrong with it before. A project can [only report these](#project-configuration) |
 | **old code elsewhere** in the file | counted in one line, never required |
 
-Files outside a git repository (scratch files), files git ignores, and files the ruff
-configuration excludes are not checked.
+Files outside a git repository (scratch files), files git ignores, and Python files the
+ruff configuration excludes are not checked.
 
-### Python written through the shell
+### Code written through the shell
 
 `sed -i`, a heredoc, a `cp` or `mv` into the repository, a code generator: none of these
 go through `Edit` or `Write`, so Bash is gated too. Before each Bash command the gate
-records the content hash of every uncommitted Python file in the session's repositories
-(its working directory's and its project's); after the command, whether it succeeded or
-failed, every Python file whose hash changed or that is new is checked exactly as an edit
-would be. A command answers only for what it wrote, never for edits made before it ran. A
-command that writes no Python costs two `git status` calls.
+records the content hash of every uncommitted Python and Swift file in the session's
+repositories (its working directory's and its project's); after the command, whether it
+succeeded or failed, every such file whose hash changed or that is new is checked exactly
+as an edit would be. A command answers only for what it wrote, never for edits made before
+it ran. A command that writes no code costs two `git status` calls.
 
-## What it checks
+## What it checks in Python
 
 - **ruff**, at the project's configuration, or at [`baseline/ruff.toml`](baseline/ruff.toml)
   when the project has none.
@@ -47,13 +49,68 @@ not block: the gate fails open.
 The gate leaves nothing in the projects it checks: ruff runs without its cache, and
 complexipy's cache goes to a temporary directory.
 
+## What it checks in Swift
+
+As each file is written:
+
+- **SwiftLint**, at [`baseline/swiftlint.yml`](baseline/swiftlint.yml): size, the
+  constructs never allowed, and likely bugs. It lints a copy of the file with every
+  `swiftlint:` comment stripped, so none silences anything, and the gate reports each such
+  comment as a finding of its own. Test files (under a `Tests` directory, or named
+  `*Tests.swift`) may compare against literal numbers.
+- **The gate's syntax rules**, from a small [swift-syntax](https://github.com/swiftlang/swift-syntax)
+  helper in [`swift/`](swift): cognitive complexity per function (limit 10, after
+  SonarSource's definition, each closure measured as a function of its own), a SwiftUI
+  view's `body` (30 lines of code), every `try?`, `@unchecked Sendable`,
+  `nonisolated(unsafe)`, and commented-out code. It also reads each file's functions,
+  types, accessors and closures, which is what places a finding against `HEAD`.
+- **swift-format**, for style, at the project's `.swift-format` or at
+  [`baseline/swift-format.json`](baseline/swift-format.json) (4-space indentation, 100
+  columns). Its findings come with the command that fixes them.
+- **A package manifest** must build in Swift 6 language mode.
+
+| Limit | Value |
+| --- | --- |
+| cognitive complexity | 10 |
+| cyclomatic complexity (`switch` cases not counted) | 8 |
+| function or closure body | 40 lines |
+| a view's `body` | 30 lines |
+| parameters, defaulted ones included | 5 |
+| nesting | types 2 deep, functions 3 |
+| a type, extensions included | 200 lines |
+| a file | 300 lines |
+
+Never allowed, and never kept: force unwraps, `try!`, `as!`, implicitly unwrapped
+optionals, `try?`, `@unchecked Sendable`, `nonisolated(unsafe)`, magic numbers,
+commented-out code, and any `swiftlint:` comment.
+
+At Stop, since a module does not build halfway through a multi-file edit:
+
+- **The compiler.** Each SwiftPM package the session wrote Swift in is built, its tests
+  included. Every error blocks wherever it is, since the build is broken, so an error in a
+  file the change never opened is caught too. Every warning in the package's own files is
+  placed like any other finding: warnings as errors for the package, without forcing the
+  flag on its dependencies. Swift 6 language mode makes concurrency checking strict. An
+  Xcode project is not built; its Swift files get every check above.
+
+SwiftLint is downloaded on first use at the version pinned in
+[`quality_gate/swift_tools.py`](quality_gate/swift_tools.py), checked against its SHA-256.
+The syntax helper is built on first use at the swift-syntax version its `Package.resolved`
+pins: that takes a few minutes, in the background, and the checks that need it fail open
+until it is ready, saying so. Both live in `~/Library/Caches/claude-quality-gate`, as do
+the builds at Stop, so a package's own `.build` is never touched. swift-format and the
+compiler are the active Xcode toolchain's. A check takes about a third of a second; a
+build at Stop as long as an incremental build takes.
+
 ## Keeping a size finding
 
 Most code that trips a size rule is better refactored, but some is the right size as
 written: a numeric routine that needs every one of its parameters, a state machine whose
-transitions belong together. The rules that measure size (C901, PLR0911, PLR0912, PLR0913,
-PLR0915, PLR0917, PLR1702 and cognitive complexity) can be kept; lint, type and style
-findings (RET, SIM, PLR5501 and everything else) are always fixed.
+transitions belong together. The rules that measure size can be kept: in Python C901,
+PLR0911, PLR0912, PLR0913, PLR0915, PLR0917, PLR1702 and cognitive complexity; in Swift
+cyclomatic complexity, function, closure, type and file length, parameter count, cognitive
+complexity and a view's body. Lint, type and style findings (RET, SIM, PLR5501, Swift's
+nesting and everything else) are always fixed. A file too long is kept for the file.
 
 Each size finding in new or touched code is reported with a short id. When Claude judges
 the code better as written, it records its case (the refactor it rejected, and why) and
@@ -89,7 +146,9 @@ lapsed case is simply made again if the change still holds the code.
 
 ## Project configuration
 
-Configuration is looked for from the file's directory up to the repository root.
+Configuration is looked for from the file's directory up to the repository root. In
+Swift, only swift-format's is the project's own (`.swift-format`); SwiftLint and the
+syntax rules hold every project to the gate's baseline.
 
 - **None**: the baseline applies.
 - **A `[tool.ruff]` table, `ruff.toml` or `.ruff.toml`**: replaces the baseline whole. To
@@ -116,8 +175,9 @@ Configuration is looked for from the file's directory up to the repository root.
 
 ## Install
 
-Requires `uv` (for `uv` and `uvx`) and `git` on `PATH`. The first check downloads the
-pinned checkers.
+Requires `uv` (for `uv` and `uvx`) and `git` on `PATH`, and for Swift, Xcode. The first
+check downloads the pinned checkers, and the first Swift check also builds the syntax
+helper.
 
 ```sh
 claude plugin marketplace add ~/code/claude-qualty-gate
@@ -147,7 +207,11 @@ uv run python quality_gate approve      # cases awaiting approval; with an id, a
 
 ```sh
 uv run pytest
+swift test --package-path swift --scratch-path /tmp/gate-syntax-build
 ```
 
-The end-to-end tests run the real checkers on scratch repositories. To try the plugin in
-one session without installing it: `claude --plugin-dir ~/code/claude-qualty-gate`.
+The end-to-end tests run the real checkers on scratch repositories, waiting the first time
+for the syntax helper to build. Build the helper outside the repository, as above: an
+install copies this whole folder, ignored files included, and swift-syntax's build is half
+a gigabyte. To try the plugin in one session without installing it:
+`claude --plugin-dir ~/code/claude-qualty-gate`.

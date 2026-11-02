@@ -33,8 +33,9 @@ from datetime import date
 from pathlib import Path
 
 import placement
-from checks import COGNITIVE_RULE, Finding
+from checks import BY_FILE, Finding
 from gate import Outcome
+from languages import SIZE_RULES
 from placement import CHANGED
 
 STATE = Path(tempfile.gettempdir()) / "claude-quality-gate"
@@ -42,19 +43,11 @@ STATE = Path(tempfile.gettempdir()) / "claude-quality-gate"
 STALE_S = 7 * 24 * 3600
 LOG = "approved.jsonl"
 GATE_DIR = Path(__file__).resolve().parent
+# What a size finding about the whole file is kept by, in place of a function's name.
+WHOLE_FILE = "(the file)"
 
-# The rules that measure size. Every other finding is fixed, never kept.
-SIZE_RULES = frozenset({
-    "C901",
-    "PLR0911",
-    "PLR0912",
-    "PLR0913",
-    "PLR0915",
-    "PLR0917",
-    "PLR1702",
-    COGNITIVE_RULE,
-})
-# ruff says "(11 > 8)"; the gate's complexipy finding says "cognitive complexity 19".
+# ruff and SwiftLint, as the gate words it, say "(11 > 8)"; the gate's cognitive
+# complexity findings say "cognitive complexity 19".
 _MEASURE = re.compile(r"\((\d+) > \d+\)|complexity (\d+)")
 _ID = re.compile(r"[0-9a-f]{6}")
 _APPROVE = re.compile(r"quality[_-]gate['\"]?\s+approve\b")
@@ -112,11 +105,12 @@ def size_of(outcome: Outcome, finding: Finding) -> Size | None:
     if finding.rule not in SIZE_RULES:
         return None
     span = placement.innermost(outcome.functions, finding.line)
+    name = WHOLE_FILE if finding.scope == BY_FILE else span and span[0]
     measured = _MEASURE.search(finding.message)
-    if span is None or measured is None:
+    if name is None or measured is None:
         return None
     value = int(measured[1] or measured[2])
-    return Size(finding, str(outcome.target.root), outcome.rel, span[0], value)
+    return Size(finding, str(outcome.target.root), outcome.rel, name, value)
 
 
 @dataclass
@@ -458,6 +452,14 @@ def files_left(session_id: str | None) -> list[Path]:
         for gone in [name for name in files if not Path(name).is_file()]:
             del files[gone]
         return [Path(name) for name, file in files.items() if file["fix"] or file["sizes"]]
+
+
+def files_seen(session_id: str | None) -> list[Path]:
+    """Every file the session's checks have seen that is still there, findings or none."""
+    if not session_id or not _session_path(session_id).is_file():
+        return []
+    with session(session_id) as memory:
+        return [Path(name) for name in memory["files"] if Path(name).is_file()]
 
 
 def unfinished(payload: dict) -> Unfinished | None:

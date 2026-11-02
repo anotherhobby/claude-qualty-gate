@@ -1,0 +1,4 @@
+# Laid over swiftlint.yml for test files (under a Tests directory, or named *Tests.swift):
+# a test compares against literal expected values, and naming each one helps nobody.
+disabled_rules:
+  - no_magic_numbers

@@ -1,8 +1,8 @@
-"""quality-gate: hold the Python Claude writes to ruff, complexipy and pyright.
+"""quality-gate: hold the Python and Swift Claude writes to their checkers.
 
     python quality_gate --hook           # after Edit, Write or MultiEdit: the call's JSON on stdin
-    python quality_gate --shell-before   # before Bash: record the uncommitted Python
-    python quality_gate --shell-after    # after Bash: gate the Python the command wrote
+    python quality_gate --shell-before   # before Bash: record the uncommitted code
+    python quality_gate --shell-after    # after Bash: gate the code the command wrote
     python quality_gate --guard          # before Edit, Write or MultiEdit: keep the agent out
                                          # of the user's approvals
     python quality_gate --stop           # at Stop: hold the agent back, once, over what it
@@ -27,8 +27,10 @@ from pathlib import Path
 
 import gate
 import keep
+import languages
 import report
 import shell
+import swift_tools
 import tools
 
 # Files checked at once after a command that wrote many; each runs four checkers.
@@ -36,23 +38,26 @@ FILES_AT_ONCE = 4
 
 
 def edited_file(payload: dict) -> Path | None:
-    """The Python file a tool call wrote, or None when it wrote none."""
+    """The file in a language the gate holds that a tool call wrote, or None."""
     raw = (payload.get("tool_input") or {}).get("file_path")
     if not raw:
         return None
     path = Path(raw)
     if not path.is_absolute():
         path = Path(payload.get("cwd") or ".") / path
-    return path if path.suffix == ".py" and path.is_file() else None
+    return path if languages.for_path(path) and path.is_file() else None
 
 
-def check_all(paths: list[Path]) -> list[gate.Outcome]:
+def check_all(paths: list[Path], *, stop: bool = False) -> list[gate.Outcome]:
+    def one(path: Path) -> gate.Outcome | None:
+        return gate.check(path, stop=stop)
+
     with ThreadPoolExecutor(max_workers=FILES_AT_ONCE) as pool:
-        return [outcome for outcome in pool.map(gate.check, paths) if outcome is not None]
+        return [outcome for outcome in pool.map(one, paths) if outcome is not None]
 
 
-def answer(payload: dict, paths: list[Path]) -> dict | None:
-    outcomes = check_all(paths)
+def answer(payload: dict, paths: list[Path], *, stop: bool = False) -> dict | None:
+    outcomes = check_all(paths, stop=stop)
     if not outcomes:
         return None
     with keep.session(payload.get("session_id")) as memory:
@@ -97,9 +102,24 @@ def _shell_after(payload: dict) -> dict | None:
     return answer(payload, shell.written(payload))
 
 
+def stop_paths(session_id: str | None) -> list[Path]:
+    """What to check at Stop: the files the session left with findings, another file's
+    edit may have fixed them; every file in a language with whole-program checks, which
+    run only now; and the files those checks find more in."""
+    paths = set(keep.files_left(session_id))
+    for language in languages.LANGUAGES:
+        if not language.stop_checkers:
+            continue
+        seen = [p for p in keep.files_seen(session_id) if languages.for_path(p) is language]
+        paths.update(seen)
+        if language.stop_paths and seen:
+            paths.update(language.stop_paths(seen))
+    return sorted(paths)
+
+
 def _stop(payload: dict) -> dict | None:
     if not payload.get("stop_hook_active"):
-        answer(payload, keep.files_left(payload.get("session_id")))
+        answer(payload, stop_paths(payload.get("session_id")), stop=True)
     left = keep.unfinished(payload)
     return {"decision": "block", "reason": report.stop_reason(left)} if left else None
 
@@ -139,7 +159,7 @@ def main(argv: list[str]) -> int:
     if argv[:1] in (["propose"], ["approve"]):
         return words(argv)
     parser = argparse.ArgumentParser(
-        prog="quality_gate", description="Hold Python to ruff, complexipy and pyright."
+        prog="quality_gate", description="Hold Python and Swift to their checkers."
     )
     modes = parser.add_mutually_exclusive_group()
     modes.add_argument("--hook", action="store_const", const="edit", dest="mode")
@@ -151,7 +171,9 @@ def main(argv: list[str]) -> int:
     parser.add_argument("files", nargs="*")
     args = parser.parse_args(argv)
     if args.mode == "outdated":
-        return tools.outdated()
+        tools.outdated()
+        print("\n".join(swift_tools.outdated_lines()))
+        return 0
     if args.mode:
         return run_hook(args.mode)
     if not args.files:

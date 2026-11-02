@@ -1,0 +1,116 @@
+# The gate's SwiftLint configuration: what every Swift file is held to.
+#
+# SwiftLint holds size, the never-allowed constructs and likely bugs; swift-format holds
+# style (baseline/swift-format.json), so no rule here measures layout. The gate lints a copy
+# of each file with its `swiftlint:` comments stripped, so nothing below can be silenced
+# inline, and reports any such comment itself. Every violation is a finding, warning or not.
+#
+# The size rules (see quality_gate/swift.py, SIZE_RULES) may be kept with a case the user
+# approves. Everything else is fixed.
+
+only_rules:
+  # Size: may be kept with a case.
+  - cyclomatic_complexity
+  - function_body_length
+  - closure_body_length
+  - type_body_length
+  - file_length
+  - function_parameter_count
+  # Never allowed, never kept.
+  - nesting
+  - large_tuple
+  - force_unwrapping
+  - force_try
+  - force_cast
+  - implicitly_unwrapped_optional
+  - no_magic_numbers
+  # Likely bugs and legacy APIs.
+  - block_based_kvo
+  - class_delegate_protocol
+  - compiler_protocol_init
+  - discarded_notification_center_observer
+  - discouraged_direct_init
+  - duplicate_conditions
+  - duplicate_enum_cases
+  - duplicate_imports
+  - duplicated_key_in_dictionary_literal
+  - dynamic_inline
+  - identical_operands
+  - invisible_character
+  - legacy_cggeometry_functions
+  - legacy_constant
+  - legacy_constructor
+  - legacy_hashing
+  - legacy_nsgeometry_functions
+  - legacy_random
+  - no_fallthrough_only
+  - non_optional_string_data_conversion
+  - notification_center_detachment
+  - ns_number_init_as_function_reference
+  - nsobject_prefer_isequal
+  - optional_data_string_conversion
+  - orphaned_doc_comment
+  - private_swiftui_state
+  - private_unit_test
+  - redundant_sendable
+  - self_in_property_initialization
+  - unhandled_throwing_task
+  - unowned_variable_capture
+  - unused_closure_parameter
+  - unused_control_flow_label
+  - unused_enumerated
+  - unused_optional_binding
+  - unused_setter_value
+  - weak_delegate
+  - yoda_condition
+  # Idiom and performance.
+  - contains_over_filter_count
+  - contains_over_filter_is_empty
+  - contains_over_first_not_nil
+  - contains_over_range_nil_comparison
+  - empty_count
+  - first_where
+  - flatmap_over_map_reduce
+  - for_where
+  - is_disjoint
+  - last_where
+  - prefer_type_checking
+  - private_over_fileprivate
+  - redundant_nil_coalescing
+  - redundant_objc_attribute
+  - redundant_set_access_control
+  - redundant_string_enum_value
+  - reduce_boolean
+  - sorted_first_last
+  - static_over_final_class
+  - syntactic_sugar
+  - toggle_bool
+  - unavailable_condition
+  - unneeded_break_in_switch
+  - unneeded_override
+  - unneeded_synthesized_initializer
+  - void_function_in_ternary
+  - xctfail_message
+
+# Limits: a violation at the warning threshold is a finding, so the error threshold is unused.
+cyclomatic_complexity:
+  warning: 8
+  ignores_case_statements: true
+function_body_length:
+  warning: 40
+closure_body_length:
+  warning: 40
+type_body_length:
+  warning: 200
+  excluded_types: [protocol]
+file_length:
+  warning: 300
+  ignore_comment_only_lines: false
+function_parameter_count:
+  warning: 5
+  ignores_default_parameters: false
+nesting:
+  type_level: 2
+  function_level: 3
+no_magic_numbers:
+  allowed_numbers: [0.0, 1.0]

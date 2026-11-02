@@ -8,6 +8,9 @@ it. A function is new when HEAD's copy of
 the file has no function of that qualified name, and a finding outside every function is
 new when its line changed. The innermost function around a line places it, so a function
 added inside an old one is new.
+
+Each language says what its functions are: Python's are its `def`s, read here; Swift's
+are read by the gate's syntax helper (see swift.py).
 """
 
 from __future__ import annotations
@@ -15,6 +18,7 @@ from __future__ import annotations
 import ast
 import re
 import subprocess
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -27,6 +31,8 @@ _FUNCTION = (ast.FunctionDef, ast.AsyncFunctionDef)
 
 # (qualified name, first line, last line)
 Span = tuple[str, int, int]
+# A language's reading of source: every function in it, as `spans` reads Python.
+SpansOf = Callable[[str], tuple[Span, ...]]
 
 
 @dataclass(frozen=True)
@@ -97,15 +103,16 @@ def changed_lines(diff: str) -> frozenset[int]:
     return frozenset(lines)
 
 
-def history(path: Path, root: Path) -> History:
-    """`path` on disk against its copy at HEAD in the repository at `root`."""
+def history(path: Path, root: Path, spans_of: SpansOf = spans) -> History:
+    """`path` on disk against its copy at HEAD in the repository at `root`, its functions
+    found by `spans_of`, its language's own reading of source."""
     rel = path.relative_to(root).as_posix()
-    functions = spans(path.read_text(encoding="utf-8"))
+    functions = spans_of(path.read_text(encoding="utf-8"))
     before = _git(root, "show", f"HEAD:{rel}")
     if before is None:
         return History(functions, None, frozenset())
     diff = _git(root, "diff", "--no-ext-diff", "--no-color", "-U0", "HEAD", "--", rel)
-    old_names = frozenset(name for name, _, _ in spans(before))
+    old_names = frozenset(name for name, _, _ in spans_of(before))
     return History(functions, old_names, changed_lines(diff or ""))
 
 
@@ -126,3 +133,11 @@ def place(line: int, file: History) -> str:
     if name not in file.old_names:
         return NEW
     return CHANGED if any(first <= n <= last for n in file.changed) else ELSEWHERE
+
+
+def place_file(file: History) -> str:
+    """NEW, CHANGED or ELSEWHERE for a finding about the whole file: touched when any line
+    of it changed."""
+    if file.old_names is None:
+        return NEW
+    return CHANGED if file.changed else ELSEWHERE

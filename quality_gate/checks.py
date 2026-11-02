@@ -45,12 +45,21 @@ BASELINE = Path(__file__).resolve().parent.parent / "baseline" / "ruff.toml"
 TIMEOUT_S = 150
 
 
+# What a finding is placed by: its line; the whole file, for a file too long, which is new
+# or touched when any of it is; or nothing, for a build error, which blocks wherever it is
+# because the build is broken.
+BY_LINE = "line"
+BY_FILE = "file"
+BY_BUILD = "build"
+
+
 @dataclass(frozen=True)
 class Finding:
     tool: str
     rule: str
     line: int
     message: str
+    scope: str = BY_LINE
 
 
 @dataclass(frozen=True)
@@ -61,7 +70,7 @@ class Target:
     root: Path
 
 
-def _dirs_up(target: Target) -> Iterator[Path]:
+def dirs_up(target: Target) -> Iterator[Path]:
     """The file's directory and each parent, up to and including the root."""
     current = target.path.parent
     while True:
@@ -88,12 +97,12 @@ def _has_ruff_config(directory: Path) -> bool:
 
 
 def has_own_ruff_config(target: Target) -> bool:
-    return any(_has_ruff_config(directory) for directory in _dirs_up(target))
+    return any(_has_ruff_config(directory) for directory in dirs_up(target))
 
 
 def cognitive_limit(target: Target) -> int:
     """The nearest `[tool.complexipy] max-complexity-allowed`, or the default."""
-    for directory in _dirs_up(target):
+    for directory in dirs_up(target):
         table = _tool_table(directory / "pyproject.toml", "complexipy") or {}
         if "max-complexity-allowed" in table:
             return int(table["max-complexity-allowed"])
@@ -104,7 +113,7 @@ def touched_functions_block(target: Target) -> bool:
     """Whether old functions a change touches block, from the nearest
     `[tool.quality-gate] touched-functions`: "block", the default, or "report". Any other
     value blocks."""
-    for directory in _dirs_up(target):
+    for directory in dirs_up(target):
         table = _tool_table(directory / "pyproject.toml", "quality-gate") or {}
         if "touched-functions" in table:
             return table["touched-functions"] != "report"

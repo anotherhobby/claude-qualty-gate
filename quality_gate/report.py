@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections import Counter
 
 import keep
+import languages
 from checks import Finding
 from keep import Triage, Unfinished, describe
 from placement import ELSEWHERE
@@ -62,6 +63,17 @@ def _counts(findings: list[Finding]) -> str:
     return ", ".join(f"{n} {rule}" for rule, n in by_rule.most_common())
 
 
+def _fixers(result: Triage) -> list[str]:
+    """The command that fixes a tool's findings mechanically, for each tool that has one."""
+    language = languages.for_path(result.outcome.target.path)
+    tools = {finding.tool for finding in result.fix}
+    return [
+        f"  The {tool} findings are fixed by: {command(result.outcome.target)}"
+        for tool, command in (language.fixers if language else ())
+        if tool in tools
+    ]
+
+
 def _blocking(result: Triage) -> list[str]:
     rel = result.outcome.rel
     if not result.blocking:
@@ -69,7 +81,7 @@ def _blocking(result: Triage) -> list[str]:
     count = len(result.fix) + len(result.keep)
     parts = [f"quality gate: {count} finding(s) in code you wrote or edited in {rel}."]
     if result.fix:
-        parts += ["Fix:", *_lines(rel, result.fix)]
+        parts += ["Fix:", *_lines(rel, result.fix), *_fixers(result)]
     if result.keep:
         parts.append("Fix, or make the case to keep [id]:")
     for size in result.keep:
