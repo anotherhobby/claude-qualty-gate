@@ -2,6 +2,7 @@
 //
 //     gate-syntax check COGNITIVE_LIMIT VIEW_BODY_LIMIT FILE   spans and findings
 //     gate-syntax spans                                        spans of the source on stdin
+//     gate-syntax previews                                     the lines of each `#Preview` block
 import Foundation
 import GateSyntaxCore
 
@@ -43,6 +44,15 @@ private func checkArguments(_ arguments: ArraySlice<String>) -> (Limits, String)
     return (Limits(cognitive: cognitive, viewBody: viewBody), path)
 }
 
+/// The source on standard input.
+private func standardInput() -> String {
+    let input = FileHandle.standardInput.readDataToEndOfFile()
+    guard let text = String(bytes: input, encoding: .utf8) else {
+        fail("gate-syntax: the source on stdin is not UTF-8")
+    }
+    return text
+}
+
 private func run(_ arguments: [String]) {
     switch arguments.first {
     case "check":
@@ -51,13 +61,13 @@ private func run(_ arguments: [String]) {
         }
         emit(check(read(path), limits: limits))
     case "spans":
-        let input = FileHandle.standardInput.readDataToEndOfFile()
-        guard let text = String(bytes: input, encoding: .utf8) else {
-            fail("gate-syntax: the source on stdin is not UTF-8")
-        }
-        emit(spans(of: text))
+        emit(spans(of: standardInput()))
+    case "previews":
+        emit(previews(of: standardInput()))
     default:
-        fail("usage: gate-syntax check COGNITIVE_LIMIT VIEW_BODY_LIMIT FILE | gate-syntax spans")
+        fail(
+            "usage: gate-syntax check COGNITIVE_LIMIT VIEW_BODY_LIMIT FILE | gate-syntax spans"
+                + " | gate-syntax previews")
     }
 }
 

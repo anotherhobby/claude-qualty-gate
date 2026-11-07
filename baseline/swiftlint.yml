@@ -101,10 +101,10 @@ function_body_length:
 closure_body_length:
   warning: 40
 type_body_length:
-  warning: 200
+  warning: 300
   excluded_types: [protocol]
 file_length:
-  warning: 300
+  warning: 400
   ignore_comment_only_lines: false
 function_parameter_count:
   warning: 5

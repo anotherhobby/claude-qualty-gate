@@ -3,11 +3,13 @@ written, and the compiler at Stop (swift_build.py).
 
 SwiftLint holds size, the constructs never allowed and likely bugs, at the gate's own
 configuration (baseline/swiftlint.yml), on a copy of the file with every `swiftlint:`
-comment stripped so that none can silence it. The helper holds what SwiftLint cannot:
-cognitive complexity, a view's body, `try?`, `@unchecked Sendable`, `nonisolated(unsafe)`,
-commented-out code and the `swiftlint:` comments themselves, and reads each file's spans
-for placement. swift-format holds style, at the project's `.swift-format` or the gate's
-baseline. A package manifest is also held to Swift 6 language mode.
+comment stripped so that none can silence it. Magic numbers are not held in tests or in a
+`#Preview` block, whose sample values name nothing worth a constant. The helper holds what
+SwiftLint cannot: cognitive complexity, a view's body, `try?`, `@unchecked Sendable`,
+`nonisolated(unsafe)`, commented-out code and the `swiftlint:` comments themselves, and
+reads each file's spans for placement. swift-format holds style, at the project's
+`.swift-format` or the gate's baseline. A package manifest is also held to Swift 6 language
+mode.
 """
 
 from __future__ import annotations
@@ -43,6 +45,8 @@ SIZE_RULES = frozenset({
     COGNITIVE_RULE,
     VIEW_BODY_RULE,
 })
+# The rule a preview's sample values are exempt from, as a test's are.
+MAGIC_NUMBERS_RULE = "no_magic_numbers"
 _NUMBER = re.compile(r"\d+")
 # `path:line:column: warning: [Rule] message`, as swift-format writes each finding.
 _FORMAT = re.compile(r"^.+?:(\d+):\d+: (?:warning|error): \[(\w+)\] (.*)$", re.MULTILINE)
@@ -72,7 +76,23 @@ def swiftlint(target: Target, _functions: tuple[Span, ...]) -> list[Finding]:
     if is_test(target):
         cmd += ["--config", str(SWIFTLINT_TESTS)]
     out = swift_tools.run(cmd, target.root, stdin=source, allowed=(0, 2)).stdout
-    return [_from_swiftlint(item) for item in json.loads(out or "[]")]
+    findings = [_from_swiftlint(item) for item in json.loads(out or "[]")]
+    in_preview = preview_lines(source)
+    return [f for f in findings if not (f.rule == MAGIC_NUMBERS_RULE and f.line in in_preview)]
+
+
+def preview_lines(source: str) -> set[int]:
+    """Every line inside a `#Preview` block of `source`, or none while the helper is not
+    built, so its findings stand until it is."""
+    try:
+        out = swift_tools.run([str(swift_tools.helper()), "previews"], Path.cwd(), stdin=source)
+    except ToolError:
+        return set()
+    return {
+        line
+        for block in json.loads(out.stdout)
+        for line in range(block["first"], block["last"] + 1)
+    }
 
 
 def syntax(target: Target, _functions: tuple[Span, ...]) -> list[Finding]:

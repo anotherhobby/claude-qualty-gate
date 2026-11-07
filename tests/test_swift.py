@@ -239,6 +239,26 @@ def test_tests_may_compare_against_literal_values(repo: Path):
 
 
 @pytest.mark.usefixtures("swift_tools_ready")
+def test_a_preview_may_use_literal_values_and_other_code_may_not(repo: Path):
+    source = textwrap.dedent(
+        """\
+        import SwiftUI
+
+        func padded(_ width: Int) -> Int { width + 12 }
+
+        #Preview("Wide") {
+            Color.red.frame(width: 1920, height: 720)
+        }
+        """
+    )
+    (repo / "Wide.swift").write_text(source)
+    outcome = check(repo / "Wide.swift")
+    assert outcome is not None
+    magic = [f.line for f in outcome.blocking if f.rule == "no_magic_numbers"]
+    assert magic == [3]
+
+
+@pytest.mark.usefixtures("swift_tools_ready")
 def test_style_findings_come_with_the_command_that_fixes_them(repo: Path):
     (repo / "Panel.swift").write_text(CLEAN.replace("    let width", "  let width"))
     outcome = check(repo / "Panel.swift")

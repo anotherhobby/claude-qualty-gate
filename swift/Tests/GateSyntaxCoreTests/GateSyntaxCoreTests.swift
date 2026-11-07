@@ -173,3 +173,26 @@ private func cognitive(_ text: String) -> Int {
         }
     }
 }
+
+@Suite struct Previews {
+    @Test func eachPreviewBlockIsFound() {
+        let text = """
+            struct Panel {}
+
+            #Preview("Wide") {
+                Panel()
+                    .frame(width: 1920, height: 720)
+            }
+
+            #Preview {
+                Panel()
+            }
+            """
+        #expect(
+            previews(of: text) == [LineRange(first: 3, last: 6), LineRange(first: 8, last: 10)])
+    }
+
+    @Test func otherMacrosAreNotPreviews() {
+        #expect(previews(of: "#warning(\"later\")\nlet x = 1\n").isEmpty)
+    }
+}

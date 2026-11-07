@@ -1,7 +1,7 @@
 {
   "$schema": "https://anthropic.com/claude-code/plugin.schema.json",
   "name": "quality-gate",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "Holds every Python and Swift file Claude writes to its checkers (ruff, complexipy and pyright; SwiftLint, swift-format, its own syntax rules and the compiler), blocking on findings in new code and in every function it edits.",
   "author": {
     "name": "Dan Cunningham"

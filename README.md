@@ -77,12 +77,13 @@ As each file is written:
 | a view's `body` | 30 lines |
 | parameters, defaulted ones included | 5 |
 | nesting | types 2 deep, functions 3 |
-| a type, extensions included | 200 lines |
-| a file | 300 lines |
+| a type, extensions included | 300 lines |
+| a file | 400 lines |
 
 Never allowed, and never kept: force unwraps, `try!`, `as!`, implicitly unwrapped
-optionals, `try?`, `@unchecked Sendable`, `nonisolated(unsafe)`, magic numbers,
-commented-out code, and any `swiftlint:` comment.
+optionals, `try?`, `@unchecked Sendable`, `nonisolated(unsafe)`, magic numbers (except in
+tests and inside a `#Preview` block, whose literal values are samples), commented-out code, and
+any `swiftlint:` comment.
 
 At Stop, since a module does not build halfway through a multi-file edit:
 
